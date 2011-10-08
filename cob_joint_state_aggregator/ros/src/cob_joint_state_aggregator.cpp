@@ -1,26 +1,34 @@
 #include "ros/ros.h"
 #include "sensor_msgs/JointState.h"
 
-typedef std::map<std::string, double> MapType;
-MapType jointpositions;
-MapType jointvelocities;
+
+// the joint state of one joint
+struct JointState {
+	double position;
+	double velocity;
+	double effort;
+};
+
+
+typedef std::map<std::string, JointState> MapType;
+MapType joints;
+
 
 void jsCallback(const sensor_msgs::JointState::ConstPtr& msg)
 {
-	MapType::iterator iter = jointpositions.begin();
-	for(int i = 0; i < msg->name.size(); i++)
+	MapType::iterator iter = joints.begin();
+	for(unsigned int i = 0; i < msg->name.size(); i++)
 	{
 		//std::cout << msg->name[i] << std::endl;
 		
-		iter = jointpositions.find(msg->name[i]);
+		iter = joints.find(msg->name[i]);
 		
-		if (iter != jointpositions.end() )
-			iter->second = msg->position[i];
-		
-		/*iter = jointvelocities.find(msg->name[i]);
-		
-		if (iter != jointvelocities.end() )
-			iter->second = msg->velocity[i];*/
+		if (iter != joints.end())
+		{
+			iter->second.position = msg->position[i];
+			iter->second.velocity = msg->velocity[i];
+			iter->second.effort = msg->effort[i];
+		}
 	}
 	//ROS_INFO("updated joint_states");
 }
@@ -29,25 +37,21 @@ sensor_msgs::JointState getJointStatesMessage()
 {
 	sensor_msgs::JointState msg;
 	msg.header.stamp = ros::Time::now();
-	msg.name.resize(jointpositions.size());
-	msg.position.resize(jointpositions.size());
-	msg.velocity.resize(jointvelocities.size());
-	msg.effort.resize(jointvelocities.size());
+	msg.name.resize(joints.size());
+	msg.position.resize(joints.size());
+	msg.velocity.resize(joints.size());
+	msg.effort.resize(joints.size());
 
 
-	MapType::const_iterator end = jointpositions.end();
-	MapType::iterator iter = jointvelocities.begin();
+	MapType::const_iterator end = joints.end();
+	MapType::iterator iter = joints.begin();
 	int count = 0; 
-	for (MapType::const_iterator it = jointpositions.begin(); it != end; ++it)
+	for (MapType::const_iterator it = joints.begin(); it != end; ++it)
 	{
 		msg.name[count] = it->first;
-		msg.position[count] = it->second;
-		iter = jointvelocities.find(it->first);
-		
-		if (iter != jointvelocities.end() )
-			msg.velocity[count] = iter->second;
-		
-		msg.effort[count] = 0;
+		msg.position[count] = it->second.position;
+		msg.velocity[count] = it->second.velocity;
+		msg.effort[count] = it->second.effort;
 		
 		count++;
 	}
@@ -76,8 +80,13 @@ int main(int argc, char **argv)
 	{
 		JointName = (std::string)JointName_param_[i];
 		ROS_DEBUG("Inserting joint %s",JointName.c_str());
-		jointpositions.insert(std::pair<std::string,double>(JointName,0.0));
-		jointvelocities.insert(std::pair<std::string,double>(JointName,0.0));
+		
+		JointState state;
+		state.position = 0.0;
+		state.velocity = 0.0;
+		state.effort = 0.0;
+
+		joints[JointName] = state;
 	}
 
 	ros::Rate loop_rate(100);
