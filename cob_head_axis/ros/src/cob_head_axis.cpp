@@ -68,6 +68,7 @@
 #include <cob_srvs/Trigger.h>
 #include <cob_srvs/SetOperationMode.h>
 #include <cob_srvs/SetDefaultVel.h>
+#include <pr2_controllers_msgs/QueryTrajectoryState.h>
 
 // external includes
 #include <cob_camera_axis/ElmoCtrl.h>
@@ -93,6 +94,7 @@ class NodeClass
 	ros::ServiceServer srvServer_Recover_;
 	ros::ServiceServer srvServer_SetOperationMode_;
 	ros::ServiceServer srvServer_SetDefaultVel_;
+	ros::ServiceServer srvServer_QueryState_;
 		
 	// declaration of service clients
 	//--
@@ -156,6 +158,7 @@ class NodeClass
 		srvServer_Recover_ = n_.advertiseService("recover", &NodeClass::srvCallback_Recover, this);
 		srvServer_SetOperationMode_ = n_.advertiseService("set_operation_mode", &NodeClass::srvCallback_SetOperationMode, this);
 		srvServer_SetDefaultVel_ = n_.advertiseService("set_default_vel", &NodeClass::srvCallback_SetDefaultVel, this);
+		srvServer_QueryState_ = n_.advertiseService("query_state", &NodeClass::srvCallback_QueryState, this);
 		
 		// implementation of service clients
 		//--
@@ -401,6 +404,44 @@ class NodeClass
 		CamAxisParams_->SetMaxVel(MaxVel_);
 		CamAxis_->setMaxVelocity(MaxVel_);
 		res.success.data = true; // 0 = true, else = false
+		return true;
+	}
+
+	/*!
+	* \brief Executes the service callback for query_state.
+	*
+	* Returns the current state.
+	* \param req Service request
+	* \param res Service response
+	*/
+	bool srvCallback_QueryState(	pr2_controllers_msgs::QueryTrajectoryState::Request &req,
+									pr2_controllers_msgs::QueryTrajectoryState::Response &resp)
+	{
+		int DOF = 1;
+
+		// prepare the response
+		resp.name.resize(DOF);
+		resp.position.resize(DOF);
+		resp.velocity.resize(DOF);
+		resp.acceleration.resize(DOF);
+
+		resp.name[0] = JointName_;
+
+		if (!isInitialized_) {
+			resp.position[0] = 0.0;
+			resp.velocity[0] = 0.0;
+
+			return true;
+		}
+
+		// get the current values
+		CamAxis_->evalCanBuffer();
+		CamAxis_->getGearPosVelRadS(&ActualPos_, &ActualVel_);
+		CamAxis_->m_Joint->requestPosVel();
+
+		resp.position[0] = ActualPos_;
+		resp.velocity[0] = ActualVel_;
+
 		return true;
 	}
 
